@@ -1,21 +1,22 @@
 #!/usr/bin/python3
+import multiprocessing
+import argparse
+import time
+import pickle
+import warnings
+from random import randint
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report, roc_auc_score, roc_curve, auc, RocCurveDisplay, ConfusionMatrixDisplay
 
 from modules.preprocessDf import Preprocess
 from modules.models import MlModels
 from modules.combinemodel import CombineModels
 from modules.modelmultiprocess import clf_func
 from modules.functions import BasicParams
-import pandas as pd
-from sklearn.metrics import accuracy_score, confusion_matrix, classification_report, roc_auc_score, roc_curve, auc, RocCurveDisplay, ConfusionMatrixDisplay
-import matplotlib.pyplot as plt
-import pandas as pd
-import multiprocessing
-import argparse
-import time
-import numpy as np
-import pickle
-from random import randint
-import warnings
+
 
 
 ###### Usage #####
@@ -72,6 +73,7 @@ if bst_params:
     for key in best:
         bp.basic_models[key] = best[key]
 print(args['ensmodels'])
+
 def main(k):
     print(k, ens_in, gsearch)
     start = time.time()
@@ -250,91 +252,91 @@ def main(k):
         else:
             with open(f'./bparams/grid_search_dictionary_svm{date}.pkl', 'wb') as f:
                 pickle.dump(gs_dict, f)
-    else:
-        from sklearn.preprocessing import MinMaxScaler, StandardScaler
-        k = 1 if fn else 100
-        csv_txt = 'final_tunned'
-        for n in range(k):
-            print(f"[INFO] Final trainig/validation model: {n+1}...")
-            df_train = pd.read_csv(train_data)
-            df_val = pd.read_csv(val_data)
-            X_train = df_train.drop(['birads', 'result', 'study'], axis=1)
-            y_train = df_train['result']
-            X_val = df_val.drop(['pt_id', 'img_id', 'birads', 'result', 'study'], axis=1)
-            y_val = df_val['result']
-            scaler = StandardScaler()
-            X_train = pd.get_dummies(X_train, columns = ['margins'])
-            X_val = pd.get_dummies(X_val, columns = ['margins'])
-            scalerModel = scaler.fit(X_train)
-            X_train = scalerModel.transform(X_train)
-            X_val = scalerModel.transform(X_val)
-            thres_df = pd.read_csv('./thres/finetune_2023_7_28.csv')
-            # print(bp.basic_models)
-            tuned_models = ['AB', 'XB'] if not fn else ['XB']
-            for key in tuned_models:
-                bp.basic_models[key]['random_state'] = randint(0,1263642323)
-            clfs = MlModels()
-            clfs.setModel(tuned_models, bp.basic_models)
-            aucs = {}
-            for key in clfs.models:
-                t = thres_df.loc[thres_df.iloc[:,0] == key  ]['thres'].values[0]-0.01
-                print(f'[INFO] running TUNED {key} with thres= {t}...')
-                aucs[key] = []
-                clf = clfs.models[key].fit(X_train, y_train)
-                y_pred = clf.predict(X_val)
-                matrix = confusion_matrix(
-                    y_val, y_pred, labels=[1, 0])
-                # print('Confusion matrix (val): \n',matrix)
-                # predict probabilities
-                y_scores = clf.predict_proba(X_val)
-                # keep probabilities for the positive outcome only
-                y_scores = y_scores[:, 1]
-                y_pred_adj = [1 if y >= t else 0 for y in y_scores]
-                report = classification_report(y_val, y_pred_adj, labels=[
-                                            1, 0], output_dict=True)
-                res = {'sens': report['1']['recall'], 'spec': report['0']['recall'], 'ppv': report['1']['precision'], 'pnv': report['0']
-                    ['precision'], 'f1-score': report['1']['f1-score'], 'auc': roc_auc_score(y_val, y_scores), 'acc': report['accuracy'], 'model': key}
-                tmp = pd.DataFrame([res])
-                df_kfold = pd.concat([df_kfold, tmp])
-        if fn:            
-            df_val['y_pred'] = y_pred_adj
-            df_val.to_csv(f'./csv/final_pred_result_{csv_txt}_{doc_name}_{date}_XB_001.csv', index=False)
-        else:
-            df_kfold.to_csv(
-                f'./kfold/kfold_result_{csv_txt}_{doc_name}_{date}.csv', index=False)
-            # shapes = True
-            # while shapes:
-            #     train, test = data.ttfolds(f=.30)
-            #     X_train, y_train, X_test, y_test = data.scaleDf(train, test, ['birads', 'result', 'study', 'vessels'], ['age', 'size', 'palpable', 'ir', 'shape', 'orientation'])
-            #     shapes = False if X_train.shape[1] ==10 and X_test.shape[1] == 10 else shapes
-            # # X_train, y_train, X_test, y_test = df.scaleDf(train, test, ['birads', 'result', 'multiple', 'vessels'], ['age', 'size', 'palpable', 'ir', 'shape', 'orientation', 'study'])
-            # # clfs_combinations = CombineModels(
-            # #     ['DT', 'LR', 'RF', 'SVM', 'AB', 'XB', 'MLP', 'KN', 'GB']).combine()
-            # # print(len(clfs_combinations))
-            # for c in args['ensmodels']:
-            #     mname = '_'.join(c)
-            #     mname = f'{mname}_{doc_name}_N{str(nm)}'
-            #     print(mname)
-            #     clfs.ensenbles(n=nm, clfs=c)
-            #     ens = clfs.ensemble
-            #     ens.fit(X_train, y_train)
-            #     y_pred = ens.predict(X_test)
-            #     if k==1:
-            #         test['pred'] = y_pred
-            #         test.to_csv(f'DF_pred_full_report_ens_{mname}.csv')
-            #         matrix = confusion_matrix(y_test, y_pred, labels=[1, 0])
-            #         print('Confusion matrix: \n', matrix)
-            #     report = classification_report(y_test, y_pred, labels=[
-            #                                 1, 0], output_dict=True)
-            #     res = {'sens': report['1']['recall'], 'spec': report['0']['recall'], 'ppv': report['1']['precision'],
-            #         'pnv': report['0']['precision'], 'f1-score': report['1']['f1-score'], 'acc': report['accuracy'], 'model': 'ens'}
-            #     # print(res)
-            #     tmp = pd.DataFrame([res])
-            #     df_kfold = pd.concat([df_kfold, tmp])
+    # else:
+    #     from sklearn.preprocessing import MinMaxScaler, StandardScaler
+    #     k = 1 if fn else 100
+    #     csv_txt = 'final_tunned'
+    #     for n in range(k):
+    #         print(f"[INFO] Final trainig/validation model: {n+1}...")
+    #         df_train = pd.read_csv(train_data)
+    #         df_val = pd.read_csv(val_data)
+    #         X_train = df_train.drop(['birads', 'result', 'study'], axis=1)
+    #         y_train = df_train['result']
+    #         X_val = df_val.drop(['pt_id', 'img_id', 'birads', 'result', 'study'], axis=1)
+    #         y_val = df_val['result']
+    #         scaler = StandardScaler()
+    #         X_train = pd.get_dummies(X_train, columns = ['margins'])
+    #         X_val = pd.get_dummies(X_val, columns = ['margins'])
+    #         scalerModel = scaler.fit(X_train)
+    #         X_train = scalerModel.transform(X_train)
+    #         X_val = scalerModel.transform(X_val)
+    #         thres_df = pd.read_csv('./thres/finetune_2023_7_28.csv')
+    #         # print(bp.basic_models)
+    #         tuned_models = ['AB', 'XB'] if not fn else ['XB']
+    #         for key in tuned_models:
+    #             bp.basic_models[key]['random_state'] = randint(0,1263642323)
+    #         clfs = MlModels()
+    #         clfs.setModel(tuned_models, bp.basic_models)
+    #         aucs = {}
+    #         for key in clfs.models:
+    #             t = thres_df.loc[thres_df.iloc[:,0] == key  ]['thres'].values[0]-0.01
+    #             print(f'[INFO] running TUNED {key} with thres= {t}...')
+    #             aucs[key] = []
+    #             clf = clfs.models[key].fit(X_train, y_train)
+    #             y_pred = clf.predict(X_val)
+    #             matrix = confusion_matrix(
+    #                 y_val, y_pred, labels=[1, 0])
+    #             # print('Confusion matrix (val): \n',matrix)
+    #             # predict probabilities
+    #             y_scores = clf.predict_proba(X_val)
+    #             # keep probabilities for the positive outcome only
+    #             y_scores = y_scores[:, 1]
+    #             y_pred_adj = [1 if y >= t else 0 for y in y_scores]
+    #             report = classification_report(y_val, y_pred_adj, labels=[
+    #                                         1, 0], output_dict=True)
+    #             res = {'sens': report['1']['recall'], 'spec': report['0']['recall'], 'ppv': report['1']['precision'], 'pnv': report['0']
+    #                 ['precision'], 'f1-score': report['1']['f1-score'], 'auc': roc_auc_score(y_val, y_scores), 'acc': report['accuracy'], 'model': key}
+    #             tmp = pd.DataFrame([res])
+    #             df_kfold = pd.concat([df_kfold, tmp])
+    #     if fn:            
+    #         df_val['y_pred'] = y_pred_adj
+    #         df_val.to_csv(f'./csv/final_pred_result_{csv_txt}_{doc_name}_{date}_XB_001.csv', index=False)
+    #     else:
+    #         df_kfold.to_csv(
+    #             f'./kfold/kfold_result_{csv_txt}_{doc_name}_{date}.csv', index=False)
+    #         # shapes = True
+    #         # while shapes:
+    #         #     train, test = data.ttfolds(f=.30)
+    #         #     X_train, y_train, X_test, y_test = data.scaleDf(train, test, ['birads', 'result', 'study', 'vessels'], ['age', 'size', 'palpable', 'ir', 'shape', 'orientation'])
+    #         #     shapes = False if X_train.shape[1] ==10 and X_test.shape[1] == 10 else shapes
+    #         # # X_train, y_train, X_test, y_test = df.scaleDf(train, test, ['birads', 'result', 'multiple', 'vessels'], ['age', 'size', 'palpable', 'ir', 'shape', 'orientation', 'study'])
+    #         # # clfs_combinations = CombineModels(
+    #         # #     ['DT', 'LR', 'RF', 'SVM', 'AB', 'XB', 'MLP', 'KN', 'GB']).combine()
+    #         # # print(len(clfs_combinations))
+    #         # for c in args['ensmodels']:
+    #         #     mname = '_'.join(c)
+    #         #     mname = f'{mname}_{doc_name}_N{str(nm)}'
+    #         #     print(mname)
+    #         #     clfs.ensenbles(n=nm, clfs=c)
+    #         #     ens = clfs.ensemble
+    #         #     ens.fit(X_train, y_train)
+    #         #     y_pred = ens.predict(X_test)
+    #         #     if k==1:
+    #         #         test['pred'] = y_pred
+    #         #         test.to_csv(f'DF_pred_full_report_ens_{mname}.csv')
+    #         #         matrix = confusion_matrix(y_test, y_pred, labels=[1, 0])
+    #         #         print('Confusion matrix: \n', matrix)
+    #         #     report = classification_report(y_test, y_pred, labels=[
+    #         #                                 1, 0], output_dict=True)
+    #         #     res = {'sens': report['1']['recall'], 'spec': report['0']['recall'], 'ppv': report['1']['precision'],
+    #         #         'pnv': report['0']['precision'], 'f1-score': report['1']['f1-score'], 'acc': report['accuracy'], 'model': 'ens'}
+    #         #     # print(res)
+    #         #     tmp = pd.DataFrame([res])
+    #         #     df_kfold = pd.concat([df_kfold, tmp])
                 
-        if k>1:
-            df_kfold = df_kfold.sort_values(by=['model'])
-            df_kfold.to_csv(f"./kfold/kfold_result_{args['ensmodels']}_final.csv", index=False)
+    #     if k>1:
+    #         df_kfold = df_kfold.sort_values(by=['model'])
+    #         df_kfold.to_csv(f"./kfold/kfold_result_{args['ensmodels']}_final.csv", index=False)
     end = time.time()
     print(f'Time spent was {end-start} seconds.')
 
