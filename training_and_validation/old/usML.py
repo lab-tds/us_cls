@@ -219,20 +219,22 @@ def main(k):
                             print(f'[INFO] running {key}...')
                             aucs[key] = []
                             clf = clfs.models[key].fit(X_train, y_train)
-                            y_pred = clf.predict(X_test)
-                            matrix = confusion_matrix(
-                                y_test, y_pred, labels=[1, 0])
-                            # print('Confusion matrix (test): \n',matrix)
-                            # predict probabilities
-                            lr_probs = clf.predict_proba(X_test)
-                            # keep probabilities for the positive outcome only
-                            lr_probs = lr_probs[:, 1]
-                            report = classification_report(y_test, y_pred, labels=[
-                                                        1, 0], output_dict=True)
-                            res = {'sens': report['1']['recall'], 'spec': report['0']['recall'], 'ppv': report['1']['precision'], 'pnv': report['0']
-                                ['precision'], 'f1-score': report['1']['f1-score'], 'auc': roc_auc_score(y_test, lr_probs), 'acc': report['accuracy'], 'model': key}
-                            tmp = pd.DataFrame([res])
-                            df_kfold = pd.concat([df_kfold, tmp])
+                            # y_pred = clf.predict(X_test)
+                            print(X_train.shape)
+                            print(clf.score(X_test, y_test))
+                            # matrix = confusion_matrix(
+                            #     y_test, y_pred, labels=[1, 0])
+                            # # print('Confusion matrix (test): \n',matrix)
+                            # # predict probabilities
+                            # lr_probs = clf.predict_proba(X_test)
+                            # # keep probabilities for the positive outcome only
+                            # lr_probs = lr_probs[:, 1]
+                            # report = classification_report(y_test, y_pred, labels=[
+                            #                             1, 0], output_dict=True)
+                            # res = {'sens': report['1']['recall'], 'spec': report['0']['recall'], 'ppv': report['1']['precision'], 'pnv': report['0']
+                            #     ['precision'], 'f1-score': report['1']['f1-score'], 'auc': roc_auc_score(y_test, lr_probs), 'acc': report['accuracy'], 'model': key}
+                            # tmp = pd.DataFrame([res])
+                            # df_kfold = pd.concat([df_kfold, tmp])
 
                 # fig, ax = plt.subplots()
                 # viz = RocCurveDisplay.from_estimator(
